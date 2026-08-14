@@ -1,6 +1,30 @@
 import sqlite3
 from datetime import datetime
 
+VALID_ACCOUNTS = [
+    "Meli",
+    "Saderat",
+    "Pasargad",
+    "Melat",
+    "Saman",
+    "Mehr",
+    "Keshavarzi",
+]
+
+VALID_CATEGORIES = [
+    "Food",
+    "Transport",
+    "Housing",
+    "Shopping",
+    "Bills",
+    "Health",
+    "Education",
+    "Entertainment",
+    "Travel",
+    "Personal",
+    "Other",
+]
+
 
 class ExpenseTracker:
     def __init__(self, db_path="expenses.db"):
@@ -10,9 +34,9 @@ class ExpenseTracker:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                amount REAL NOT NULL,
+                amount INTEGER NOT NULL,
                 category TEXT NOT NULL,
-                card TEXT NOT NULL,
+                account TEXT NOT NULL,
                 description TEXT,
                 timestamp TEXT NOT NULL,
                 user_id INTEGER
@@ -22,7 +46,7 @@ class ExpenseTracker:
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS incomes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                amount REAL NOT NULL,
+                amount INTEGER NOT NULL,
                 title TEXT NOT NULL,
                 account TEXT NOT NULL,
                 description TEXT,
@@ -33,20 +57,20 @@ class ExpenseTracker:
 
         self.connection.commit()
 
-    def insert_expense(self, amount, category, card, description, timestamp, user_id):
+    def insert_expense(self, amount, category, account, description, timestamp, user_id):
         self.cursor.execute(
             """
             INSERT INTO expenses (
                 amount,
                 category,
-                card,
+                account,
                 description,
                 timestamp,
                 user_id
             )
             VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (amount, category, card, description, timestamp, user_id),
+            (amount, category, account, description, timestamp, user_id),
         )
 
         self.connection.commit()
@@ -75,7 +99,7 @@ class ExpenseTracker:
             SELECT
                 amount,
                 category,
-                card,
+                account,
                 description,
                 timestamp,
                 user_id
@@ -160,6 +184,45 @@ class ExpenseTracker:
         return self.cursor.fetchall()
 
 
+# validation logic control: 
+
+def validate_amount(amount):
+    amount = int(amount)
+    if amount <= 0:
+        raise ValueError
+    return amount
+
+
+def validate_account(account):
+
+    normalized_account_words = account.strip().lower().split()
+
+    for valid_account in VALID_ACCOUNTS:
+        if valid_account.lower() in normalized_account_words:
+            return valid_account
+
+    raise ValueError
+
+
+def validate_category(category):
+    normalized_category = category.strip().lower()
+
+    for valid_category in VALID_CATEGORIES:
+        if normalized_category == valid_category.lower():
+            return valid_category
+
+    raise ValueError
+
+def validate_title(title):
+    title = title.strip().lower()
+
+    if not title:
+        raise ValueError
+
+    return title
+
+
+
 def save_income(dict_object, tracker):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
@@ -179,7 +242,7 @@ def save_expense(dict_object, tracker):
     tracker.insert_expense(
         dict_object["amount"],
         dict_object["category"],
-        dict_object["card"],
+        dict_object["account"],
         dict_object["description"],
         timestamp,
         dict_object["user_id"],
@@ -196,7 +259,7 @@ def format_report(user_id, tracker) -> str:
     report = "Financial Report\n----------------\nIncomes:\n"
     if total_incomes != 0:
         for title, total in income_breakdown:
-            report += f"{title}: {total}\n"
+            report += f"{title.title()}: {total}\n"
     report += f"Total Income: {total_incomes}\n\n"
 
     report += "Expenses:\n"
@@ -211,23 +274,93 @@ def format_report(user_id, tracker) -> str:
 
     return report
 
-    # def create_listOfDicts(data_tuples):
-    #     data_list = []
-    #     if len(data_tuples) == 0:
-    #         return 0
-    #     else:
-    #         for data_tuple in data_tuples:
-    #             data_list.append({data_tuple[0]: data_tuple[1]})
-    #     return data_list
 
 
-# def format_balance():
-#     ...
+def conversation_flow(tracker, user_id):
+    # 1. action
+    actions = ["income", "expense"]
+    while True:
+        action = input("Action (income/expense): ").strip().lower()
+        if action in actions:
+            break
+        else:
+            print("Invalid action. Please try again.")
+
+    # 2. amount
+    while True:    
+        try:
+            amount = validate_amount(input("Amount: "))
+            break
+        except ValueError:
+            print("Invalid amount. Please try again.")
+
+    # 3. title/category
+    if action == "income":
+        while True:    
+            try:
+                title = validate_title(input("Title: "))
+                break
+            except ValueError:
+                print("Invalid title. Please try again.")
+    else:
+        while True:    
+            try:
+                category = validate_category(input("Category: "))
+                break
+            except ValueError:
+                print("Invalid category. Please try again.")
+
+    # 4. account
+    while True:    
+        try:
+            account = validate_account(input("Account: "))
+            break
+        except ValueError:
+            print("Invalid account. Please try again.")
+
+    # 5. description
+    description = input("Description: ").strip()
+        
+    # 6. save
+    if action == "income":
+        dict_income = {
+            "amount": amount,
+            "title": title,
+            "account": account,
+            "description": description,
+            "user_id": user_id,
+            }
+        save_income(dict_income, tracker)
+        print("Income saved successfully.")
+
+    else:
+        dict_expense = {
+            "amount": amount,
+            "category": category,
+            "account": account,
+            "description": description,
+            "user_id": user_id,
+            }
+        save_expense(dict_expense, tracker)
+        print("Expense saved successfully.")
+    
+# refactor method
+def get_valid_input(func,promt):
+    while True:    
+        try:
+            value = func(input(f"{promt.capitalize()}: "))
+            break
+        except ValueError:
+            print(f"Invalid {promt}. Please try again.")
+    return value
+
 
 
 # def main():
 #     ...
 
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    tracker = ExpenseTracker()
+    #conversation_flow(tracker, 1234)
+    print(format_report(user_id=1234, tracker=tracker))

@@ -1,4 +1,7 @@
-from project import ExpenseTracker, format_report
+from project import ExpenseTracker, format_report, save_income, save_expense
+from project import validate_amount, validate_account, validate_category, validate_title
+from project import conversation_flow
+import pytest
 
 
 def test_insert_expense():
@@ -90,7 +93,9 @@ def test_get_total_incomes():
 def test_get_expense_breakdown():
     tracker = ExpenseTracker(":memory:")
     tracker.insert_expense(100, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
-    tracker.insert_expense(50, "Food", "Master Card", "test", "2026-08-13 19:57", 1234)
+    tracker.insert_expense(
+        50, "Food", "Master account", "test", "2026-08-13 19:57", 1234
+    )
     tracker.insert_expense(
         200, "Book", "PeyPal", "Harry Potter Book", "2026-08-13 19:37", 1234
     )
@@ -202,3 +207,133 @@ def test_format_report_breakdown():
     assert "Food: 500" in report
     assert "Total Expenses: 600" in report
     assert "Balance: 1900" in report
+
+
+def test_save_income():
+    tracker = ExpenseTracker(":memory:")
+    income = {
+        "amount": 2000,
+        "title": "Salary",
+        "account": "Bank",
+        "description": "Monthly salary",
+        "user_id": 1234,
+    }
+    save_income(income, tracker)
+    incomes = tracker.fetch_incomes(1234)
+
+    assert len(incomes) == 1
+    assert incomes[0][0] == 2000
+    assert incomes[0][1] == "Salary"
+    assert incomes[0][2] == "Bank"
+    assert incomes[0][3] == "Monthly salary"
+    assert incomes[0][5] == 1234
+
+
+def test_save_expense():
+    tracker = ExpenseTracker(":memory:")
+    expense = {
+        "amount": 200,
+        "category": "Food",
+        "account": "Visa",
+        "description": "Dinner",
+        "user_id": 1234,
+    }
+
+    save_expense(expense, tracker)
+    expenses = tracker.fetch_expenses(1234)
+
+    assert len(expenses) == 1
+    assert expenses[0][0] == 200
+    assert expenses[0][1] == "Food"
+    assert expenses[0][2] == "Visa"
+    assert expenses[0][3] == "Dinner"
+    assert expenses[0][5] == 1234
+
+
+def test_validate_amount():
+    assert validate_amount("5000") == 5000
+    with pytest.raises(ValueError):
+        validate_amount("-500")
+    with pytest.raises(ValueError):
+        validate_amount("abc")
+    with pytest.raises(ValueError):
+        validate_amount("0")
+    with pytest.raises(ValueError):
+        validate_amount("10.7")
+
+
+def test_validate_account():
+    assert validate_account("saderat") == "Saderat"
+    assert validate_account("   saderat") == "Saderat"
+    assert validate_account("saderat   ") == "Saderat"
+    assert validate_account("pasargad") == "Pasargad"
+    with pytest.raises(ValueError):
+        validate_account("  ")
+    with pytest.raises(ValueError):
+        validate_account("")
+
+
+def test_validate_category():
+    assert validate_category("food") == "Food"
+    assert validate_category("   FOOD") == "Food"
+    assert validate_category("Food") == "Food"
+    with pytest.raises(ValueError):
+        validate_category("Fast Food")
+    with pytest.raises(ValueError):
+        validate_category("rice")
+    with pytest.raises(ValueError):
+        validate_category("")
+
+
+def test_validate_title():
+    assert validate_title("Salary") == "salary"
+    assert validate_title("   Salary") == "salary"
+    assert validate_title("freelance") == "freelance"
+    assert validate_title("SALARY") == "salary"
+    with pytest.raises(ValueError):
+        validate_title("")
+    with pytest.raises(ValueError):
+        validate_title("  ")
+
+
+def test_conversation_flow_income(monkeypatch):
+    tracker = ExpenseTracker(":memory:")
+    answers = iter(["income", "1300", "salary", "meli", "monthly salary"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    conversation_flow(tracker, 1234)
+
+    incomes = tracker.fetch_incomes(1234)
+    assert len(incomes) == 1
+    assert incomes[0][0] == 1300
+    assert incomes[0][1] == "salary"
+    assert incomes[0][2] == "Meli"
+    assert incomes[0][3] == "monthly salary"
+    assert incomes[0][5] == 1234
+
+
+def test_conversation_flow_expense(monkeypatch):
+    tracker = ExpenseTracker(":memory:")
+    answers = iter(["expense", "500", "food", "meli", "dinner"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    conversation_flow(tracker, 1234)
+
+    expenses = tracker.fetch_expenses(1234)
+    assert len(expenses) == 1
+    assert expenses[0][0] == 500
+    assert expenses[0][1] == "Food"
+    assert expenses[0][2] == "Meli"
+    assert expenses[0][3] == "dinner"
+    assert expenses[0][5] == 1234
+
+
+def test_conversation_flow_invalid_amount(monkeypatch):
+    tracker = ExpenseTracker(":memory:")
+    answers = iter(
+        ["income", "abc", "-500", "1300", "salary", "meli", "monthly salary"]
+    )
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    conversation_flow(tracker, 1234)
+
+    incomes = tracker.fetch_incomes(1234)
+    assert len(incomes) == 1
+    assert incomes[0][0] == 1300
