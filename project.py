@@ -277,6 +277,7 @@ def format_report(user_id, tracker) -> str:
 
 
 def conversation_flow(tracker, user_id):
+    
     # 1. action
     actions = ["income", "expense"]
     while True:
@@ -287,80 +288,73 @@ def conversation_flow(tracker, user_id):
             print("Invalid action. Please try again.")
 
     # 2. amount
-    while True:    
-        try:
-            amount = validate_amount(input("Amount: "))
-            break
-        except ValueError:
-            print("Invalid amount. Please try again.")
+    amount = get_valid_input(validate_amount,"amount")
+
 
     # 3. title/category
     if action == "income":
-        while True:    
-            try:
-                title = validate_title(input("Title: "))
-                break
-            except ValueError:
-                print("Invalid title. Please try again.")
+         title_or_category = get_valid_input(validate_title,"title")
+
     else:
-        while True:    
-            try:
-                category = validate_category(input("Category: "))
-                break
-            except ValueError:
-                print("Invalid category. Please try again.")
+         title_or_category = get_valid_input(validate_category,"category")
 
     # 4. account
-    while True:    
-        try:
-            account = validate_account(input("Account: "))
-            break
-        except ValueError:
-            print("Invalid account. Please try again.")
+    account = get_valid_input(validate_account,"account") 
+
 
     # 5. description
     description = input("Description: ").strip()
-        
-    # 6. save
-    if action == "income":
-        dict_income = {
-            "amount": amount,
-            "title": title,
-            "account": account,
-            "description": description,
-            "user_id": user_id,
-            }
-        save_income(dict_income, tracker)
-        print("Income saved successfully.")
 
-    else:
-        dict_expense = {
-            "amount": amount,
-            "category": category,
-            "account": account,
-            "description": description,
-            "user_id": user_id,
-            }
-        save_expense(dict_expense, tracker)
-        print("Expense saved successfully.")
     
-# refactor method
-def get_valid_input(func,promt):
+    # 6. save
+    create_and_save_transaction(
+        action, 
+        amount , 
+        title_or_category, 
+        account, 
+        description, 
+        user_id, 
+        tracker)
+
+    
+# refactor method for validators
+def get_valid_input(validator_func,prompt):
     while True:    
         try:
-            value = func(input(f"{promt.capitalize()}: "))
+            value = validator_func(input(f"{prompt.capitalize()}: "))
             break
         except ValueError:
-            print(f"Invalid {promt}. Please try again.")
+            print(f"Invalid {prompt}. Please try again.")
     return value
 
+# refactor method for creating and saving transaction
+def create_and_save_transaction(action, 
+                                amount, 
+                                title_or_category, 
+                                account, 
+                                description, user_id, 
+                                tracker
+                                ):
+    dict_input = {
+        "amount": amount,
+        "title" if action == "income" else "category" : title_or_category,
+        "account": account,
+        "description": description,
+        "user_id": user_id,
+        }
+    save_income(dict_input, tracker) if action == "income" else save_expense(dict_input, tracker)
+    print(f"{action.capitalize()} saved successfully.")
+
+def state_management(user_id):
+    ...
 
 
-# def main():
-#     ...
-
-
-if __name__ == "__main__":
+def main():
     tracker = ExpenseTracker()
     #conversation_flow(tracker, 1234)
     print(format_report(user_id=1234, tracker=tracker))
+
+
+if __name__ == "__main__":
+    main()
+
