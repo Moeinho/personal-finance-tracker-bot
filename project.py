@@ -276,83 +276,114 @@ def format_report(user_id, tracker) -> str:
 
 
 
-def conversation_flow(tracker, user_id):
-    
+def conversation_flow(tracker, user_id, user_input, user_states):
+    # format user input
+    user_input = user_input.strip().lower()
+
+    if user_id not in user_states:
+        user_states[user_id] = {"state":"WAITING_FOR_ACTION"}
     # 1. action
-    actions = ["income", "expense"]
-    while True:
-        action = input("Action (income/expense): ").strip().lower()
-        if action in actions:
-            break
+
+    if user_states[user_id]["state"] == "WAITING_FOR_ACTION":
+        action = user_input
+        if action in ["income", "expense"]:
+                user_states[user_id]["action"] = action
+                user_states[user_id]["state"] = "WAITING_FOR_AMOUNT"
+                
         else:
             print("Invalid action. Please try again.")
+            
 
     # 2. amount
-    amount = get_valid_input(validate_amount,"amount")
-
+    elif user_states[user_id]["state"] == "WAITING_FOR_AMOUNT":
+        try:
+            amount = validate_amount(user_input)
+            user_states[user_id]["amount"] = amount
+            if user_states[user_id]["action"] == "income":
+                user_states[user_id]["state"] = "WAITING_FOR_TITLE"
+            elif user_states[user_id]["action"] == "expense":
+                user_states[user_id]["state"] = "WAITING_FOR_CATEGORY"
+            
+        except ValueError:
+            print("Invalid amount. Please try again.")
 
     # 3. title/category
-    if action == "income":
-         title_or_category = get_valid_input(validate_title,"title")
+    elif user_states[user_id]["state"] == "WAITING_FOR_TITLE":
+        try:
+            title = validate_title(user_input)
+            user_states[user_id]["title"] = title
+            user_states[user_id]["state"] = "WAITING_FOR_ACCOUNT"
+            
+        except ValueError:
+            print("Invalid title. Please try again.")
 
-    else:
-         title_or_category = get_valid_input(validate_category,"category")
+    elif user_states[user_id]["state"] == "WAITING_FOR_CATEGORY":
+        try:
+            category = validate_category(user_input)
+            user_states[user_id]["category"] = category
+            user_states[user_id]["state"] = "WAITING_FOR_ACCOUNT"
+
+        except ValueError:
+            print("Invalid category. Please try again.")
+
 
     # 4. account
-    account = get_valid_input(validate_account,"account") 
-
+    elif user_states[user_id]["state"] == "WAITING_FOR_ACCOUNT":
+        try:
+            account = validate_account(user_input)
+            user_states[user_id]["account"] = account
+            user_states[user_id]["state"] = "WAITING_FOR_DESCRIPTION"
+        except ValueError:
+            print("Invalid account. Please try again.")
 
     # 5. description
-    description = input("Description: ").strip()
+    elif user_states[user_id]["state"] == "WAITING_FOR_DESCRIPTION":
+        description = user_input
+        user_states[user_id]["description"] = description
+        user_states[user_id]["state"] = "WAITING_FOR_SAVING"
+        print("in description")
 
-    
-    # 6. save
-    create_and_save_transaction(
-        action, 
-        amount , 
-        title_or_category, 
-        account, 
-        description, 
-        user_id, 
-        tracker)
 
-    
-# refactor method for validators
-def get_valid_input(validator_func,prompt):
-    while True:    
-        try:
-            value = validator_func(input(f"{prompt.capitalize()}: "))
-            break
-        except ValueError:
-            print(f"Invalid {prompt}. Please try again.")
-    return value
+    elif user_states[user_id]["state"] == "WAITING_FOR_SAVING" and user_input =="/save":
+        print("before checking action in saving part")
+        if user_states[user_id]["action"] == "income":
+            print("income final_dct")
+            final_dict = {
+                "amount": user_states[user_id]["amount"],
+                "title":user_states[user_id]["title"],
+                "account": user_states[user_id]["account"],
+                "description": user_states[user_id]["description"],
+                "user_id": user_id,
+                }
+            save_income(final_dict, tracker)
 
-# refactor method for creating and saving transaction
-def create_and_save_transaction(action, 
-                                amount, 
-                                title_or_category, 
-                                account, 
-                                description, user_id, 
-                                tracker
-                                ):
-    dict_input = {
-        "amount": amount,
-        "title" if action == "income" else "category" : title_or_category,
-        "account": account,
-        "description": description,
-        "user_id": user_id,
-        }
-    save_income(dict_input, tracker) if action == "income" else save_expense(dict_input, tracker)
-    print(f"{action.capitalize()} saved successfully.")
+        else:
+            print("expense final_dct")
+            final_dict = {
+                "amount": user_states[user_id]["amount"],
+                "category":user_states[user_id]["category"],
+                "account": user_states[user_id]["account"],
+                "description": user_states[user_id]["description"],
+                "user_id": user_id,
+                }
+            save_expense(final_dict, tracker)
+        user_states[user_id]["state"] = "DONE"
 
-def state_management(user_id):
-    ...
+
 
 
 def main():
     tracker = ExpenseTracker()
-    #conversation_flow(tracker, 1234)
+    user_states = {}
+    conversation_flow(tracker, 1234,"income", user_states)
+    conversation_flow(tracker, 1234, "abc", user_states)
+    conversation_flow(tracker, 1234, "2000", user_states)
+    conversation_flow(tracker, 1234, "salary", user_states)
+    conversation_flow(tracker, 1234, "saderat", user_states)
+    conversation_flow(tracker, 1234, "monthly salary", user_states)
+    conversation_flow(tracker, 1234, "/save", user_states)
     print(format_report(user_id=1234, tracker=tracker))
+
 
 
 if __name__ == "__main__":

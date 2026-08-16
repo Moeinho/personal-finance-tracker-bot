@@ -296,44 +296,60 @@ def test_validate_title():
         validate_title("  ")
 
 
-def test_conversation_flow_income(monkeypatch):
+def test_conversation_flow_action():
     tracker = ExpenseTracker(":memory:")
-    answers = iter(["income", "1300", "salary", "meli", "monthly salary"])
-    monkeypatch.setattr("builtins.input", lambda _: next(answers))
-    conversation_flow(tracker, 1234)
+    user_states = {}
+
+    conversation_flow(tracker, 1234, "income", user_states)
+
+    assert user_states[1234]["state"] == "WAITING_FOR_AMOUNT"
+    assert user_states[1234]["action"] == "income"
+
+
+def test_conversation_flow_amount():
+    tracker = ExpenseTracker(":memory:")
+    user_states = {}
+
+    conversation_flow(tracker, 1234, "income", user_states)
+    conversation_flow(tracker, 1234, "1300", user_states)
+
+    assert user_states[1234]["state"] == "WAITING_FOR_TITLE"
+    assert user_states[1234]["amount"] == 1300
+
+
+def test_conversation_flow_invalid_amount():
+    tracker = ExpenseTracker(":memory:")
+    user_states = {}
+
+    conversation_flow(tracker, 1234, "income", user_states)
+    conversation_flow(tracker, 1234, "abc", user_states)
+
+    assert user_states[1234]["state"] == "WAITING_FOR_AMOUNT"
+    assert "amount" not in user_states[1234]
+
+
+def test_conversation_flow_save_income():
+    tracker = ExpenseTracker(":memory:")
+    user_states = {}
+
+    conversation_flow(tracker, 1234, "income", user_states)
+    conversation_flow(tracker, 1234, "1300", user_states)
+    conversation_flow(tracker, 1234, "salary", user_states)
+    conversation_flow(tracker, 1234, "meli", user_states)
+    conversation_flow(tracker, 1234, "monthly salary", user_states)
+    conversation_flow(tracker, 1234, "/save", user_states)
 
     incomes = tracker.fetch_incomes(1234)
+
     assert len(incomes) == 1
     assert incomes[0][0] == 1300
     assert incomes[0][1] == "salary"
     assert incomes[0][2] == "Meli"
     assert incomes[0][3] == "monthly salary"
     assert incomes[0][5] == 1234
+    assert user_states[1234]["state"] == "DONE"
 
 
-def test_conversation_flow_expense(monkeypatch):
-    tracker = ExpenseTracker(":memory:")
-    answers = iter(["expense", "500", "food", "meli", "dinner"])
-    monkeypatch.setattr("builtins.input", lambda _: next(answers))
-    conversation_flow(tracker, 1234)
-
-    expenses = tracker.fetch_expenses(1234)
-    assert len(expenses) == 1
-    assert expenses[0][0] == 500
-    assert expenses[0][1] == "Food"
-    assert expenses[0][2] == "Meli"
-    assert expenses[0][3] == "dinner"
-    assert expenses[0][5] == 1234
 
 
-def test_conversation_flow_invalid_amount(monkeypatch):
-    tracker = ExpenseTracker(":memory:")
-    answers = iter(
-        ["income", "abc", "-500", "1300", "salary", "meli", "monthly salary"]
-    )
-    monkeypatch.setattr("builtins.input", lambda _: next(answers))
-    conversation_flow(tracker, 1234)
 
-    incomes = tracker.fetch_incomes(1234)
-    assert len(incomes) == 1
-    assert incomes[0][0] == 1300
