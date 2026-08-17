@@ -1,11 +1,11 @@
-from project import ExpenseTracker, format_report, save_income, save_expense
+from project import Tracker, format_report, save_income, save_expense
 from project import validate_amount, validate_account, validate_category, validate_title
 from project import conversation_flow
 import pytest
 
 
 def test_insert_expense():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_expense(100, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
 
     assert tracker.fetch_expenses(1234) == [
@@ -14,7 +14,7 @@ def test_insert_expense():
 
 
 def test_insert_income():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_income(
         2000, "Salary", "Bank", "Monthly salary", "2026-08-13 10:00", 1234
     )
@@ -25,7 +25,7 @@ def test_insert_income():
 
 
 def test_fetch_expenses():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_expense(100, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
     tracker.insert_expense(
         200, "Book", "Bank", "Harry Potter", "2026-08-13 20:00", 1234
@@ -42,7 +42,7 @@ def test_fetch_expenses():
 
 
 def test_fetch_incomes():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_income(2000, "Salary", "Bank", "Salary", "2026-08-13 10:00", 1234)
     tracker.insert_income(500, "Bonus", "Bank", "Bonus", "2026-08-13 11:00", 1234)
     tracker.insert_income(
@@ -63,7 +63,7 @@ def test_fetch_incomes():
 
 
 def test_get_total_expenses():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     assert tracker.get_total_expenses(1234) is None
     tracker.insert_expense(100, "Food", "Visa", "test", "2026-08-13 19:00", 1234)
     assert tracker.get_total_expenses(1234) == 100
@@ -74,7 +74,7 @@ def test_get_total_expenses():
 
 
 def test_get_total_incomes():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     assert tracker.get_total_incomes(1234) is None
     tracker.insert_income(
         2000, "Salary", "Bank", "Monthly salary", "2026-08-13 10:00", 1234
@@ -91,7 +91,7 @@ def test_get_total_incomes():
 
 
 def test_get_expense_breakdown():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_expense(100, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
     tracker.insert_expense(
         50, "Food", "Master account", "test", "2026-08-13 19:57", 1234
@@ -106,7 +106,7 @@ def test_get_expense_breakdown():
 
 
 def test_get_income_breakdown():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
 
     tracker.insert_income(
         2000, "Salary", "Bank", "Monthly salary", "2026-08-13 10:00", 1234
@@ -123,7 +123,7 @@ def test_get_income_breakdown():
 
 # test format_roport
 def test_format_report_empty():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     report = format_report(tracker=tracker, user_id=1234)
 
     assert "Financial Report" in report
@@ -134,7 +134,7 @@ def test_format_report_empty():
 
 
 def test_format_report_income_only():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_income(
         2000, "Salary", "Bank", "Monthly salary", "2026-08-13 10:00", 1234
     )
@@ -147,7 +147,7 @@ def test_format_report_income_only():
 
 
 def test_format_report_expense_only():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_expense(500, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
     report = format_report(tracker=tracker, user_id=1234)
 
@@ -158,7 +158,7 @@ def test_format_report_expense_only():
 
 
 def test_format_report_income_and_expense():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_income(
         2000, "Salary", "Bank", "Monthly salary", "2026-08-13 10:00", 1234
     )
@@ -172,7 +172,7 @@ def test_format_report_income_and_expense():
 
 
 def test_format_report_negative_balance():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_income(500, "Salary", "Bank Meli", "Bonus", "2026-08-13 11:00", 1234)
     tracker.insert_expense(700, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
     tracker.insert_expense(
@@ -189,7 +189,7 @@ def test_format_report_negative_balance():
 
 
 def test_format_report_breakdown():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     tracker.insert_income(500, "Salary", "Bank Meli", "Bonus", "2026-08-13 11:00", 1234)
     tracker.insert_income(
         2000, "Salary", "Bank", "Monthly salary", "2026-08-13 10:00", 1234
@@ -210,7 +210,7 @@ def test_format_report_breakdown():
 
 
 def test_save_income():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     income = {
         "amount": 2000,
         "title": "Salary",
@@ -230,7 +230,7 @@ def test_save_income():
 
 
 def test_save_expense():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     expense = {
         "amount": 200,
         "category": "Food",
@@ -297,7 +297,7 @@ def test_validate_title():
 
 
 def test_conversation_flow_action():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     user_states = {}
 
     conversation_flow(tracker, 1234, "income", user_states)
@@ -307,7 +307,7 @@ def test_conversation_flow_action():
 
 
 def test_conversation_flow_amount():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     user_states = {}
 
     conversation_flow(tracker, 1234, "income", user_states)
@@ -318,7 +318,7 @@ def test_conversation_flow_amount():
 
 
 def test_conversation_flow_invalid_amount():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     user_states = {}
 
     conversation_flow(tracker, 1234, "income", user_states)
@@ -329,7 +329,7 @@ def test_conversation_flow_invalid_amount():
 
 
 def test_conversation_flow_save_income():
-    tracker = ExpenseTracker(":memory:")
+    tracker = Tracker(":memory:")
     user_states = {}
 
     conversation_flow(tracker, 1234, "income", user_states)
@@ -347,9 +347,11 @@ def test_conversation_flow_save_income():
     assert incomes[0][2] == "Meli"
     assert incomes[0][3] == "monthly salary"
     assert incomes[0][5] == 1234
-    assert user_states[1234]["state"] == "DONE"
+    assert user_states[1234]["state"] == "WAITING_FOR_ACTION"
+    
 
 
+###############
 
 
 

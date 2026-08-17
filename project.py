@@ -26,7 +26,7 @@ VALID_CATEGORIES = [
 ]
 
 
-class ExpenseTracker:
+class Tracker:
     def __init__(self, db_path="expenses.db"):
         self.connection = sqlite3.connect(db_path)
         self.cursor = self.connection.cursor()
@@ -52,6 +52,19 @@ class ExpenseTracker:
                 description TEXT,
                 timestamp TEXT NOT NULL,
                 user_id INTEGER
+            )
+        """)
+
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_states (
+                user_id INTEGER PRIMARY KEY,
+                state TEXT NOT NULL,
+                action TEXT,
+                amount INTEGER,
+                title TEXT,
+                category TEXT,
+                account TEXT,
+                description TEXT
             )
         """)
 
@@ -183,6 +196,94 @@ class ExpenseTracker:
 
         return self.cursor.fetchall()
 
+    # New methods for user_states table
+    
+    def create_user_state(self, user_id):
+        self.cursor.execute(
+            """
+            INSERT OR IGNORE INTO user_states (user_id, state)
+            VALUES (?, ?)
+            """,
+            (user_id, "WAITING_FOR_ACTION")
+        )
+
+        self.connection.commit()
+
+
+    def get_user_state(self, user_id):
+        self.cursor.execute(
+            """
+            SELECT
+                state,
+                action,
+                amount,
+                title,
+                category,
+                account,
+                description
+            FROM user_states
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
+
+        result = self.cursor.fetchone()
+
+        if result is None:
+            return None
+
+        return {
+            "state": result[0],
+            "action": result[1],
+            "amount": result[2],
+            "title": result[3],
+            "category": result[4],
+            "account": result[5],
+            "description": result[6],
+        }
+
+
+    def update_user_state(self, user_id, data):
+        self.cursor.execute(
+            """
+            UPDATE user_states
+            SET
+                state = ?,
+                action = ?,
+                amount = ?,
+                title = ?,
+                category = ?,
+                account = ?,
+                description = ?
+            WHERE user_id = ?
+            """,
+            (
+                data.get("state"),
+                data.get("action"),
+                data.get("amount"),
+                data.get("title"),
+                data.get("category"),
+                data.get("account"),
+                data.get("description"),
+                user_id
+            )
+        )
+
+        self.connection.commit()
+
+
+    def delete_user_state(self, user_id):
+        self.cursor.execute(
+            """
+            DELETE FROM user_states
+            WHERE user_id = ?
+            """,
+            (user_id,)
+        )
+
+        self.connection.commit()
+
+
 
 # validation logic control: 
 
@@ -289,9 +390,10 @@ def conversation_flow(tracker, user_id, user_input, user_states):
         if action in ["income", "expense"]:
                 user_states[user_id]["action"] = action
                 user_states[user_id]["state"] = "WAITING_FOR_AMOUNT"
+                return "Please enter the amount: "
                 
         else:
-            print("Invalid action. Please try again.")
+            return "Invalid action. Please try again."
             
 
     # 2. amount
@@ -301,11 +403,13 @@ def conversation_flow(tracker, user_id, user_input, user_states):
             user_states[user_id]["amount"] = amount
             if user_states[user_id]["action"] == "income":
                 user_states[user_id]["state"] = "WAITING_FOR_TITLE"
+                return "Please enter your income title: "
             elif user_states[user_id]["action"] == "expense":
                 user_states[user_id]["state"] = "WAITING_FOR_CATEGORY"
+                return "Please enter your expense category: "
             
         except ValueError:
-            print("Invalid amount. Please try again.")
+            return ("Invalid amount. Please try again.")
 
     # 3. title/category
     elif user_states[user_id]["state"] == "WAITING_FOR_TITLE":
@@ -313,18 +417,20 @@ def conversation_flow(tracker, user_id, user_input, user_states):
             title = validate_title(user_input)
             user_states[user_id]["title"] = title
             user_states[user_id]["state"] = "WAITING_FOR_ACCOUNT"
+            return "Please enter your account name: "
             
         except ValueError:
-            print("Invalid title. Please try again.")
+            return "Invalid title. Please try again."
 
     elif user_states[user_id]["state"] == "WAITING_FOR_CATEGORY":
         try:
             category = validate_category(user_input)
             user_states[user_id]["category"] = category
             user_states[user_id]["state"] = "WAITING_FOR_ACCOUNT"
+            return "Please enter your account name: "
 
         except ValueError:
-            print("Invalid category. Please try again.")
+            return "Invalid category. Please try again."
 
 
     # 4. account
@@ -333,21 +439,24 @@ def conversation_flow(tracker, user_id, user_input, user_states):
             account = validate_account(user_input)
             user_states[user_id]["account"] = account
             user_states[user_id]["state"] = "WAITING_FOR_DESCRIPTION"
+            return "Please enter your description: "
         except ValueError:
-            print("Invalid account. Please try again.")
+            return "Invalid account. Please try again."
 
     # 5. description
     elif user_states[user_id]["state"] == "WAITING_FOR_DESCRIPTION":
         description = user_input
         user_states[user_id]["description"] = description
         user_states[user_id]["state"] = "WAITING_FOR_SAVING"
-        print("in description")
+        return "Description saved. Send /save to store transaction."
 
 
-    elif user_states[user_id]["state"] == "WAITING_FOR_SAVING" and user_input =="/save":
-        print("before checking action in saving part")
+    # 6. save
+    elif (
+        user_states[user_id]["state"] == "WAITING_FOR_SAVING"
+        and user_input =="/save"
+    ):
         if user_states[user_id]["action"] == "income":
-            print("income final_dct")
             final_dict = {
                 "amount": user_states[user_id]["amount"],
                 "title":user_states[user_id]["title"],
@@ -358,7 +467,6 @@ def conversation_flow(tracker, user_id, user_input, user_states):
             save_income(final_dict, tracker)
 
         else:
-            print("expense final_dct")
             final_dict = {
                 "amount": user_states[user_id]["amount"],
                 "category":user_states[user_id]["category"],
@@ -367,13 +475,14 @@ def conversation_flow(tracker, user_id, user_input, user_states):
                 "user_id": user_id,
                 }
             save_expense(final_dict, tracker)
-        user_states[user_id]["state"] = "DONE"
+        user_states[user_id] = {"state": "WAITING_FOR_ACTION"}
+        return "Transaction saved successfully."
 
 
 
 
 def main():
-    tracker = ExpenseTracker()
+    tracker = Tracker()
     user_states = {}
     conversation_flow(tracker, 1234,"income", user_states)
     conversation_flow(tracker, 1234, "abc", user_states)
@@ -383,6 +492,15 @@ def main():
     conversation_flow(tracker, 1234, "monthly salary", user_states)
     conversation_flow(tracker, 1234, "/save", user_states)
     print(format_report(user_id=1234, tracker=tracker))
+
+    # tracker = ExpenseTracker(":memory:")
+    # user_states = {}
+
+    # print(conversation_flow(tracker, 1234, "income", user_states))
+    # print(user_states)
+
+    # print(conversation_flow(tracker, 1234, "2000", user_states))
+    # print(user_states)
 
 
 
