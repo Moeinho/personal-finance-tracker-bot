@@ -283,6 +283,9 @@ class Tracker:
 
         self.connection.commit()
 
+    def reset_user_state(self, user_id):
+        self.delete_user_state(user_id)
+        self.create_user_state(user_id)
 
 
 # validation logic control: 
