@@ -243,7 +243,7 @@ class Tracker:
         }
 
 
-    def update_user_state(self, user_id, data):
+    def update_user_state(self, user_id, state_data):
         self.cursor.execute(
             """
             UPDATE user_states
@@ -258,13 +258,13 @@ class Tracker:
             WHERE user_id = ?
             """,
             (
-                data.get("state"),
-                data.get("action"),
-                data.get("amount"),
-                data.get("title"),
-                data.get("category"),
-                data.get("account"),
-                data.get("description"),
+                state_data.get("state"),
+                state_data.get("action"),
+                state_data.get("amount"),
+                state_data.get("title"),
+                state_data.get("category"),
+                state_data.get("account"),
+                state_data.get("description"),
                 user_id
             )
         )
@@ -376,20 +376,47 @@ def format_report(user_id, tracker) -> str:
     return report
 
 
+# refactor method for save
+def save_transaction(state, user_id, tracker):
+        
+        if state["action"] == "income":
+            final_dict = {
+                "amount": state["amount"],
+                "title": state["title"],
+                "account": state["account"],
+                "description": state["description"],
+                "user_id": user_id,
+            }
+            save_income(final_dict, tracker)
 
-def conversation_flow(tracker, user_id, user_input, user_states):
+        elif state["action"] == "expense":
+            final_dict = {
+                "amount": state["amount"],
+                "category": state["category"],
+                "account": state["account"],
+                "description": state["description"],
+                "user_id": user_id,
+            }
+            save_expense(final_dict, tracker)
+            
+
+def conversation_flow(tracker, user_id, user_input):
+
     # format user input
     user_input = user_input.strip().lower()
+    state = tracker.get_user_state(user_id)
 
-    if user_id not in user_states:
-        user_states[user_id] = {"state":"WAITING_FOR_ACTION"}
+    if state is None:
+        tracker.create_user_state(user_id)
+        state = tracker.get_user_state(user_id)
+
     # 1. action
-
-    if user_states[user_id]["state"] == "WAITING_FOR_ACTION":
+    if state["state"] == "WAITING_FOR_ACTION":
         action = user_input
         if action in ["income", "expense"]:
-                user_states[user_id]["action"] = action
-                user_states[user_id]["state"] = "WAITING_FOR_AMOUNT"
+                state["action"] = action
+                state["state"] = "WAITING_FOR_AMOUNT"
+                tracker.update_user_state(user_id, state)
                 return "Please enter the amount: "
                 
         else:
@@ -397,36 +424,40 @@ def conversation_flow(tracker, user_id, user_input, user_states):
             
 
     # 2. amount
-    elif user_states[user_id]["state"] == "WAITING_FOR_AMOUNT":
+    elif state["state"] == "WAITING_FOR_AMOUNT":
         try:
             amount = validate_amount(user_input)
-            user_states[user_id]["amount"] = amount
-            if user_states[user_id]["action"] == "income":
-                user_states[user_id]["state"] = "WAITING_FOR_TITLE"
+            state["amount"] = amount
+            if state["action"] == "income":
+                state["state"] = "WAITING_FOR_TITLE"
+                tracker.update_user_state(user_id, state)
                 return "Please enter your income title: "
-            elif user_states[user_id]["action"] == "expense":
-                user_states[user_id]["state"] = "WAITING_FOR_CATEGORY"
+            elif state["action"] == "expense":
+                state["state"] = "WAITING_FOR_CATEGORY"
+                tracker.update_user_state(user_id, state)
                 return "Please enter your expense category: "
             
         except ValueError:
             return ("Invalid amount. Please try again.")
 
     # 3. title/category
-    elif user_states[user_id]["state"] == "WAITING_FOR_TITLE":
+    elif state["state"] == "WAITING_FOR_TITLE":
         try:
             title = validate_title(user_input)
-            user_states[user_id]["title"] = title
-            user_states[user_id]["state"] = "WAITING_FOR_ACCOUNT"
+            state["title"] = title
+            state["state"] = "WAITING_FOR_ACCOUNT"
+            tracker.update_user_state(user_id, state)
             return "Please enter your account name: "
             
         except ValueError:
             return "Invalid title. Please try again."
 
-    elif user_states[user_id]["state"] == "WAITING_FOR_CATEGORY":
+    elif state["state"] == "WAITING_FOR_CATEGORY":
         try:
             category = validate_category(user_input)
-            user_states[user_id]["category"] = category
-            user_states[user_id]["state"] = "WAITING_FOR_ACCOUNT"
+            state["category"] = category
+            state["state"] = "WAITING_FOR_ACCOUNT"
+            tracker.update_user_state(user_id, state)
             return "Please enter your account name: "
 
         except ValueError:
@@ -434,72 +465,47 @@ def conversation_flow(tracker, user_id, user_input, user_states):
 
 
     # 4. account
-    elif user_states[user_id]["state"] == "WAITING_FOR_ACCOUNT":
+    elif state["state"] == "WAITING_FOR_ACCOUNT":
         try:
             account = validate_account(user_input)
-            user_states[user_id]["account"] = account
-            user_states[user_id]["state"] = "WAITING_FOR_DESCRIPTION"
+            state["account"] = account
+            state["state"] = "WAITING_FOR_DESCRIPTION"
+            tracker.update_user_state(user_id, state)
             return "Please enter your description: "
         except ValueError:
             return "Invalid account. Please try again."
 
     # 5. description
-    elif user_states[user_id]["state"] == "WAITING_FOR_DESCRIPTION":
+    elif state["state"] == "WAITING_FOR_DESCRIPTION":
         description = user_input
-        user_states[user_id]["description"] = description
-        user_states[user_id]["state"] = "WAITING_FOR_SAVING"
-        return "Description saved. Send /save to store transaction."
+        state["description"] = description
 
-
-    # 6. save
-    elif (
-        user_states[user_id]["state"] == "WAITING_FOR_SAVING"
-        and user_input =="/save"
-    ):
-        if user_states[user_id]["action"] == "income":
-            final_dict = {
-                "amount": user_states[user_id]["amount"],
-                "title":user_states[user_id]["title"],
-                "account": user_states[user_id]["account"],
-                "description": user_states[user_id]["description"],
-                "user_id": user_id,
-                }
-            save_income(final_dict, tracker)
-
-        else:
-            final_dict = {
-                "amount": user_states[user_id]["amount"],
-                "category":user_states[user_id]["category"],
-                "account": user_states[user_id]["account"],
-                "description": user_states[user_id]["description"],
-                "user_id": user_id,
-                }
-            save_expense(final_dict, tracker)
-        user_states[user_id] = {"state": "WAITING_FOR_ACTION"}
+        # Saving Automatically
+        save_transaction(state, user_id, tracker)
+        tracker.delete_user_state(user_id)
         return "Transaction saved successfully."
+
 
 
 
 
 def main():
     tracker = Tracker()
-    user_states = {}
-    conversation_flow(tracker, 1234,"income", user_states)
-    conversation_flow(tracker, 1234, "abc", user_states)
-    conversation_flow(tracker, 1234, "2000", user_states)
-    conversation_flow(tracker, 1234, "salary", user_states)
-    conversation_flow(tracker, 1234, "saderat", user_states)
-    conversation_flow(tracker, 1234, "monthly salary", user_states)
-    conversation_flow(tracker, 1234, "/save", user_states)
+    conversation_flow(tracker, 1234,"income")
+    conversation_flow(tracker, 1234, "abc")
+    conversation_flow(tracker, 1234, "600")
+    conversation_flow(tracker, 1234, "first salary")
+    conversation_flow(tracker, 1234, "saderat")
+    conversation_flow(tracker, 1234, "monthly salary")
+    conversation_flow(tracker, 1234, "/save")
     print(format_report(user_id=1234, tracker=tracker))
 
     # tracker = ExpenseTracker(":memory:")
-    # user_states = {}
 
-    # print(conversation_flow(tracker, 1234, "income", user_states))
+    # print(conversation_flow(tracker, 1234, "income")
     # print(user_states)
 
-    # print(conversation_flow(tracker, 1234, "2000", user_states))
+    # print(conversation_flow(tracker, 1234, "2000")
     # print(user_states)
 
 
