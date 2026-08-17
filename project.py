@@ -9,6 +9,11 @@ VALID_ACCOUNTS = [
     "Saman",
     "Mehr",
     "Keshavarzi",
+    "Tejarat",
+    "Resalat",
+    "Shahr",
+    "Dey",
+    "Parsian"
 ]
 
 VALID_CATEGORIES = [
