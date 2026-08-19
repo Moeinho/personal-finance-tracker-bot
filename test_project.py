@@ -1,7 +1,8 @@
 from tracker import Tracker
-from project import format_report, save_income, save_expense
+from project import recent_transactions, expense_to_dict, income_to_dict, format_report
+from project import save_income, save_expense
 from project import validate_amount, validate_account, validate_category, validate_title
-from project import conversation_flow
+from project import conversation_flow, save_transaction
 import pytest
 
 
@@ -10,10 +11,13 @@ def test_format_report_empty():
     tracker = Tracker(":memory:")
     report = format_report(tracker=tracker, user_id=1234)
 
-    assert "Financial Report" in report
-    assert "Total Income: 0" in report
-    assert "Total Expenses: 0" in report
-    assert "Balance: 0" in report
+    assert "📊 FINANCIAL REPORT\n" in report
+    assert "💰 INCOMES\n" in report
+    assert "\nTotal Incomes: 0 T\n\n" in report
+    assert "💸 EXPENSES\n" in report
+    assert "\nTotal Expenses: 0 T\n\n" in report
+    assert "💵 BALANCE\n" in report
+    assert "0 T\n\n" in report
     assert "No transactions yet." in report
 
 
@@ -24,10 +28,14 @@ def test_format_report_income_only():
     )
     report = format_report(tracker=tracker, user_id=1234)
 
-    assert "Financial Report" in report
-    assert "Total Income: 2000" in report
-    assert "Total Expenses: 0" in report
-    assert "Balance: 2000" in report
+    assert "📊 FINANCIAL REPORT\n" in report
+    assert "💰 INCOMES\n" in report
+    assert "\nTotal Incomes: 2,000 T\n\n" in report
+    assert "💸 EXPENSES\n" in report
+    assert "\nTotal Expenses: 0 T\n\n" in report
+    assert "💵 BALANCE\n" in report
+    assert "2,000 T\n\n" in report
+    assert "No transactions yet." not in report
 
 
 def test_format_report_expense_only():
@@ -35,10 +43,14 @@ def test_format_report_expense_only():
     tracker.insert_expense(500, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
     report = format_report(tracker=tracker, user_id=1234)
 
-    assert "Financial Report" in report
-    assert "Total Income: 0" in report
-    assert "Total Expenses: 500" in report
-    assert "Balance: -500" in report
+    assert "📊 FINANCIAL REPORT\n" in report
+    assert "💰 INCOMES\n" in report
+    assert "\nTotal Incomes: 0 T\n\n" in report
+    assert "💸 EXPENSES\n" in report
+    assert "\nTotal Expenses: 500 T\n\n" in report
+    assert "💵 BALANCE\n" in report
+    assert "-500 T\n\n" in report
+    assert "No transactions yet." not in report
 
 
 def test_format_report_income_and_expense():
@@ -49,10 +61,14 @@ def test_format_report_income_and_expense():
     tracker.insert_expense(500, "Food", "Visa", "Dinner", "2026-08-13 19:00", 1234)
     report = format_report(tracker=tracker, user_id=1234)
 
-    assert "Financial Report" in report
-    assert "Total Income: 2000" in report
-    assert "Total Expenses: 500" in report
-    assert "Balance: 1500" in report
+    assert "📊 FINANCIAL REPORT\n" in report
+    assert "💰 INCOMES\n" in report
+    assert "\nTotal Incomes: 2,000 T\n\n" in report
+    assert "💸 EXPENSES\n" in report
+    assert "\nTotal Expenses: 500 T\n\n" in report
+    assert "💵 BALANCE\n" in report
+    assert "1,500 T\n\n" in report
+    assert "No transactions yet." not in report
 
 
 def test_format_report_negative_balance():
@@ -64,12 +80,16 @@ def test_format_report_negative_balance():
     )
     report = format_report(tracker=tracker, user_id=1234)
 
-    assert "Financial Report" in report
-    assert "Total Income: 500" in report
-    assert "Book: 100" in report
-    assert "Food: 700" in report
-    assert "Total Expenses: 800" in report
-    assert "Balance: -300" in report
+    assert "📊 FINANCIAL REPORT\n" in report
+    assert "💰 INCOMES\n" in report
+    assert "\nTotal Incomes: 500 T\n\n" in report
+    assert "💸 EXPENSES\n" in report
+    assert "Book: 100 T" in report
+    assert "Food: 700 T" in report
+    assert "\nTotal Expenses: 800 T\n\n" in report
+    assert "💵 BALANCE\n" in report
+    assert "-300 T\n\n" in report
+    assert "No transactions yet." not in report
 
 
 def test_format_report_breakdown():
@@ -84,13 +104,17 @@ def test_format_report_breakdown():
     )
     report = format_report(tracker=tracker, user_id=1234)
 
-    assert "Financial Report" in report
-    assert "Salary: 2500" in report
-    assert "Total Income: 2500" in report
-    assert "Book: 100" in report
-    assert "Food: 500" in report
-    assert "Total Expenses: 600" in report
-    assert "Balance: 1900" in report
+    assert "📊 FINANCIAL REPORT\n" in report
+    assert "💰 INCOMES\n" in report
+    assert "Salary: 2,500 T" in report
+    assert "\nTotal Incomes: 2,500 T\n\n" in report
+    assert "💸 EXPENSES\n" in report
+    assert "Book: 100 T" in report
+    assert "Food: 500 T" in report
+    assert "\nTotal Expenses: 600 T\n\n" in report
+    assert "💵 BALANCE\n" in report
+    assert "1,900 T\n\n" in report
+    assert "No transactions yet." not in report
 
 
 def test_save_income():
@@ -174,10 +198,18 @@ def test_validate_title():
     assert validate_title("   Salary") == "salary"
     assert validate_title("freelance") == "freelance"
     assert validate_title("SALARY") == "salary"
+    assert validate_title("حقوق") == "حقوق"
+    assert validate_title("123 salary") == "123 salary"
     with pytest.raises(ValueError):
         validate_title("")
     with pytest.raises(ValueError):
         validate_title("  ")
+    with pytest.raises(ValueError):
+        validate_title("123456")
+    with pytest.raises(ValueError):
+        validate_title("!!!")
+    with pytest.raises(ValueError):
+        validate_title("#$%")
 
 
 def test_conversation_flow_action():
@@ -185,29 +217,35 @@ def test_conversation_flow_action():
     conversation_flow(tracker, 1234, "income")
     state = tracker.get_user_state(1234)
 
-    assert state["state"] == "WAITING_FOR_AMOUNT"
+    assert state["state"] == "WAITING_FOR_TITLE"
     assert state["action"] == "income"
-
 
 
 def test_conversation_flow_amount():
     tracker = Tracker(":memory:")
 
     conversation_flow(tracker, 1234, "income")
+    conversation_flow(tracker, 1234, "salary")
     conversation_flow(tracker, 1234, "1300")
 
     state = tracker.get_user_state(1234)
 
-    assert state["state"] == "WAITING_FOR_TITLE"
+    assert state["state"] == "WAITING_FOR_ACCOUNT"
+    assert state["title"] == "salary"
     assert state["amount"] == 1300
 
 
 def test_conversation_flow_invalid_amount():
     tracker = Tracker(":memory:")
     conversation_flow(tracker, 1234, "income")
-    conversation_flow(tracker, 1234, "abc",)
+    conversation_flow(tracker, 1234, "salary")
+    conversation_flow(
+        tracker,
+        1234,
+        "abc",
+    )
     state = tracker.get_user_state(1234)
-    
+
     assert state["state"] == "WAITING_FOR_AMOUNT"
     assert state["amount"] is None
 
@@ -215,8 +253,8 @@ def test_conversation_flow_invalid_amount():
 def test_conversation_flow_save_income():
     tracker = Tracker(":memory:")
     conversation_flow(tracker, 1234, "income")
-    conversation_flow(tracker, 1234, "1300")
     conversation_flow(tracker, 1234, "salary")
+    conversation_flow(tracker, 1234, "1300")
     conversation_flow(tracker, 1234, "meli")
     conversation_flow(tracker, 1234, "monthly salary")
 
@@ -229,4 +267,130 @@ def test_conversation_flow_save_income():
     assert incomes[0][3] == "monthly salary"
     assert incomes[0][5] == 1234
     assert tracker.get_user_state(1234) is None
-    
+
+
+# test recent_transactions
+
+
+def test_recent_transactions_no_transactions():
+    tracker = Tracker(":memory:")
+    recent = recent_transactions(1234, tracker, 5)
+    assert "🕐 LATEST TRANSACTIONS" in recent
+    assert "No transactions yet." in recent
+
+
+def test_recent_transactions():
+    tracker = Tracker(":memory:")
+
+    tracker.insert_expense(200, "Food", "Bank", "Lunch", "2026-08-13 10:00", 1234)
+    tracker.insert_expense(500, "Transport", "Bank", "Taxi", "2026-08-13 11:00", 1234)
+    tracker.insert_expense(
+        700, "Shopping", "Bank Meli", "Clothes", "2026-08-15 11:00", 1234
+    )
+    tracker.insert_expense(
+        10000, "Housing", "Bank", "Other user", "2026-08-16 12:00", 9999
+    )
+    tracker.insert_expense(400, "Food", "Bank Meli", "Dinner", "2026-08-17 11:00", 1234)
+    tracker.insert_expense(
+        800, "Bills", "Bank Meli", "Internet", "2026-08-18 11:00", 1234
+    )
+    tracker.insert_expense(
+        2200, "Travel", "Bank Meli", "Hotel", "2026-08-18 13:00", 1234
+    )
+    tracker.insert_expense(100, "Food", "Bank Meli", "Coffee", "2026-08-18 17:00", 1234)
+
+    tracker.insert_income(2000, "Salary", "Bank", "Salary", "2026-08-13 10:30", 1234)
+    tracker.insert_income(500, "Bonus", "Bank", "Bonus", "2026-08-13 11:30", 1234)
+    tracker.insert_income(700, "Salary", "Bank Meli", "test", "2026-08-15 11:30", 1234)
+    tracker.insert_income(
+        10000, "Salary", "Bank", "Other user", "2026-08-16 12:00", 9999
+    )
+    tracker.insert_income(400, "Salary", "Bank Meli", "test", "2026-08-17 11:30", 1234)
+    tracker.insert_income(800, "Salary", "Bank Meli", "test", "2026-08-18 11:30", 1234)
+    tracker.insert_income(2200, "Bonus", "Bank Meli", "test", "2026-08-18 13:30", 1234)
+    tracker.insert_income(100, "Bonus", "Bank Meli", "test", "2026-08-18 17:30", 1234)
+    recent = recent_transactions(1234, tracker, 10)
+
+    assert "🕐 LATEST TRANSACTIONS" in recent
+    assert "💰 Bonus\n100 T" in recent
+    assert "💰 Bonus\n2,200 T" in recent
+    assert "💸 Food\n100 T" in recent
+    assert "💸 Travel\n2,200 T" in recent
+    assert "Other user" not in recent
+
+
+def test_recent_transactions_fewer_than_limit():
+    tracker = Tracker(":memory:")
+    tracker.insert_income(2000, "Salary", "Meli", "Salary", "2026-08-18 10:00", 1234)
+    tracker.insert_expense(500, "Food", "Meli", "Lunch", "2026-08-18 11:00", 1234)
+    recent = recent_transactions(1234, tracker, 5)
+
+    assert "Salary" in recent
+    assert "Food" in recent
+    assert recent.count("📅") == 2
+
+
+def test_recent_transactions_respects_limit():
+    tracker = Tracker(":memory:")
+    for i in range(7):
+        tracker.insert_income(
+            100 * (i + 1),
+            "Salary",
+            "Meli",
+            f"Test {i}",
+            f"2026-08-18 10:0{i}:00",
+            1234,
+        )
+
+    recent = recent_transactions(1234, tracker, 5)
+    assert recent.count("📅") == 5
+
+
+def test_income_to_dict():
+    incomes = [(2000, "salary", "Meli", "monthly salary", "2026-08-18 13:00", 1234)]
+    result = income_to_dict(incomes)
+    assert result == [
+        {
+            "type": "income",
+            "amount": 2000,
+            "name": "salary",
+            "account": "Meli",
+            "description": "monthly salary",
+            "timestamp": "2026-08-18 13:00",
+        }
+    ]
+
+
+def test_expense_to_dict():
+    expenses = [(500, "Food", "Meli", "Dinner", "2026-08-18 19:00", 1234)]
+    result = expense_to_dict(expenses)
+    assert result == [
+        {
+            "type": "expense",
+            "amount": 500,
+            "name": "Food",
+            "account": "Meli",
+            "description": "Dinner",
+            "timestamp": "2026-08-18 19:00",
+        }
+    ]
+
+
+def test_save_transaction():
+    tracker = Tracker(":memory:")
+    state = {
+        "action": "income",
+        "amount": 2000,
+        "title": "salary",
+        "account": "Meli",
+        "description": "monthly salary",
+    }
+    save_transaction(state, 1234, tracker)
+    incomes = tracker.fetch_incomes(1234)
+
+    assert len(incomes) == 1
+    assert incomes[0][0] == 2000
+    assert incomes[0][1] == "salary"
+    assert incomes[0][2] == "Meli"
+    assert incomes[0][3] == "monthly salary"
+    assert incomes[0][5] == 1234

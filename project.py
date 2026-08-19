@@ -13,7 +13,7 @@ VALID_ACCOUNTS = [
     "Resalat",
     "Shahr",
     "Dey",
-    "Parsian"
+    "Parsian",
 ]
 
 VALID_CATEGORIES = [
@@ -31,8 +31,8 @@ VALID_CATEGORIES = [
 ]
 
 
+# validation logic control:
 
-# validation logic control: 
 
 def validate_amount(amount):
     amount = int(amount)
@@ -61,14 +61,14 @@ def validate_category(category):
 
     raise ValueError
 
+
 def validate_title(title):
     title = title.strip().lower()
 
-    if not title:
+    if not title or len(title) > 100 or not any(char.isalpha() for char in title):
         raise ValueError
 
     return title
-
 
 
 def save_income(dict_object, tracker):
@@ -97,6 +97,73 @@ def save_expense(dict_object, tracker):
     )
 
 
+# Convert income rows from tuples to dictionaries
+def income_to_dict(latest_incomes):
+    return [
+        {
+            "type": "income",
+            "amount": row[0],
+            "name": row[1],
+            "account": row[2],
+            "description": row[3],
+            "timestamp": row[4],
+        }
+        for row in latest_incomes
+    ]
+
+
+# Convert expense rows from tuples to dictionaries
+def expense_to_dict(latest_expenses):
+    return [
+        {
+            "type": "expense",
+            "amount": row[0],
+            "name": row[1],
+            "account": row[2],
+            "description": row[3],
+            "timestamp": row[4],
+        }
+        for row in latest_expenses
+    ]
+
+
+def recent_transactions(user_id, tracker, limit):
+    latest_incomes = tracker.get_latest_incomes(user_id, limit)
+    latest_incomes_dicts = income_to_dict(latest_incomes)
+
+    latest_expenses = tracker.get_latest_expenses(user_id, limit)
+    latest_expenses_dicts = expense_to_dict(latest_expenses)
+
+    # merging and sorting latest_transactions list
+    latest_transactions = latest_incomes_dicts + latest_expenses_dicts
+    # newest first
+    latest_transactions = sorted(
+        latest_transactions,
+        key=lambda transaction: transaction["timestamp"],
+        reverse=True,
+    )
+    last_limited_transactions = latest_transactions[0:limit]
+
+    # Latest transactions
+    recent = "🕐 LATEST TRANSACTIONS\n"
+    recent += "━━━━━━━━━━━━━━━━\n\n"
+
+    if len(last_limited_transactions) == 0:
+        recent += "No transactions yet.\n"
+        return recent
+
+    for transaction in last_limited_transactions:
+        if transaction["type"] == "expense":
+            recent += f"💸 {transaction["name"]}\n"
+        elif transaction["type"] == "income":
+            recent += f"💰 {transaction["name"]}\n"
+        recent += f"{transaction["amount"]:,} T\n"
+        recent += f"🏦 {transaction["account"]}\n"
+        recent += f"📝 {transaction["description"]}\n"
+        recent += f"📅 {transaction["timestamp"]}\n\n"
+    return recent
+
+
 def format_report(user_id, tracker) -> str:
     total_expenses = tracker.get_total_expenses(user_id) or 0
     total_incomes = tracker.get_total_incomes(user_id) or 0
@@ -104,19 +171,29 @@ def format_report(user_id, tracker) -> str:
     expense_breakdown = tracker.get_expense_breakdown(user_id)
     income_breakdown = tracker.get_income_breakdown(user_id)
 
-    report = "Financial Report\n----------------\nIncomes:\n"
+    # report format
+    report = "📊 FINANCIAL REPORT\n"
+    report += "━━━━━━━━━━━━━━━━\n\n"
+
+    # Incomes
+    report += "💰 INCOMES\n"
+
     if total_incomes != 0:
         for title, total in income_breakdown:
-            report += f"{title.title()}: {total}\n"
-    report += f"Total Income: {total_incomes}\n\n"
+            report += f"{title.title()}: {total:,} T\n"
+    report += f"\nTotal Incomes: {total_incomes:,} T\n\n"
 
-    report += "Expenses:\n"
+    # Expenses
+    report += "💸 EXPENSES\n"
     if total_expenses != 0:
         for category, total in expense_breakdown:
-            report += f"{category}: {total}\n"
-    report += f"Total Expenses: {total_expenses}\n\n"
+            report += f"{category}: {total:,} T\n"
+    report += f"\nTotal Expenses: {total_expenses:,} T\n\n"
 
-    report += f"Balance: {balance}\n"
+    # Balance
+    report += "💵 BALANCE\n"
+    report += f"{balance:,} T\n\n"
+
     if total_expenses == 0 and total_incomes == 0:
         report += f"\nNo transactions yet.\n"
 
@@ -125,27 +202,27 @@ def format_report(user_id, tracker) -> str:
 
 # refactor method for save
 def save_transaction(state, user_id, tracker):
-        
-        if state["action"] == "income":
-            final_dict = {
-                "amount": state["amount"],
-                "title": state["title"],
-                "account": state["account"],
-                "description": state["description"],
-                "user_id": user_id,
-            }
-            save_income(final_dict, tracker)
 
-        elif state["action"] == "expense":
-            final_dict = {
-                "amount": state["amount"],
-                "category": state["category"],
-                "account": state["account"],
-                "description": state["description"],
-                "user_id": user_id,
-            }
-            save_expense(final_dict, tracker)
-            
+    if state["action"] == "income":
+        final_dict = {
+            "amount": state["amount"],
+            "title": state["title"],
+            "account": state["account"],
+            "description": state["description"],
+            "user_id": user_id,
+        }
+        save_income(final_dict, tracker)
+
+    elif state["action"] == "expense":
+        final_dict = {
+            "amount": state["amount"],
+            "category": state["category"],
+            "account": state["account"],
+            "description": state["description"],
+            "user_id": user_id,
+        }
+        save_expense(final_dict, tracker)
+
 
 def conversation_flow(tracker, user_id, user_input):
 
@@ -161,41 +238,27 @@ def conversation_flow(tracker, user_id, user_input):
     if state["state"] == "WAITING_FOR_ACTION":
         action = user_input
         if action in ["income", "expense"]:
-                state["action"] = action
-                state["state"] = "WAITING_FOR_AMOUNT"
-                tracker.update_user_state(user_id, state)
-                return "Please enter the amount: "
-                
-        else:
-            return "Invalid action. Please try again."
-            
-
-    # 2. amount
-    elif state["state"] == "WAITING_FOR_AMOUNT":
-        try:
-            amount = validate_amount(user_input)
-            state["amount"] = amount
-            if state["action"] == "income":
+            state["action"] = action
+            if action == "income":
                 state["state"] = "WAITING_FOR_TITLE"
                 tracker.update_user_state(user_id, state)
-                return "Please enter your income title: "
-            elif state["action"] == "expense":
+                return "Please enter the income title: "
+            elif action == "expense":
                 state["state"] = "WAITING_FOR_CATEGORY"
                 tracker.update_user_state(user_id, state)
-                return "Please enter your expense category: "
-            
-        except ValueError:
-            return ("Invalid amount. Please try again.")
+                return "Please enter the expense category: "
+        else:
+            return "Invalid action. Please try again."
 
-    # 3. title/category
+    # 2. title/category
     elif state["state"] == "WAITING_FOR_TITLE":
         try:
             title = validate_title(user_input)
             state["title"] = title
-            state["state"] = "WAITING_FOR_ACCOUNT"
+            state["state"] = "WAITING_FOR_AMOUNT"
             tracker.update_user_state(user_id, state)
-            return "Please enter your account name: "
-            
+            return "Please enter the amount in Tomans: "
+
         except ValueError:
             return "Invalid title. Please try again."
 
@@ -203,13 +266,24 @@ def conversation_flow(tracker, user_id, user_input):
         try:
             category = validate_category(user_input)
             state["category"] = category
+            state["state"] = "WAITING_FOR_AMOUNT"
+            tracker.update_user_state(user_id, state)
+            return "Please enter the amount in Tomans: "
+
+        except ValueError:
+            return "Invalid category. Please try again."
+
+    # 3. amount
+    elif state["state"] == "WAITING_FOR_AMOUNT":
+        try:
+            amount = validate_amount(user_input)
+            state["amount"] = amount
             state["state"] = "WAITING_FOR_ACCOUNT"
             tracker.update_user_state(user_id, state)
             return "Please enter your account name: "
 
         except ValueError:
-            return "Invalid category. Please try again."
-
+            return "Invalid amount. Please try again."
 
     # 4. account
     elif state["state"] == "WAITING_FOR_ACCOUNT":
@@ -230,33 +304,12 @@ def conversation_flow(tracker, user_id, user_input):
         # Saving Automatically
         save_transaction(state, user_id, tracker)
         tracker.delete_user_state(user_id)
-        return "Transaction saved successfully."
-
-
-
+        return "✅ Transaction saved successfully!"
 
 
 def main():
-    tracker = Tracker()
-    conversation_flow(tracker, 1234,"income")
-    conversation_flow(tracker, 1234, "abc")
-    conversation_flow(tracker, 1234, "600")
-    conversation_flow(tracker, 1234, "first salary")
-    conversation_flow(tracker, 1234, "saderat")
-    conversation_flow(tracker, 1234, "monthly salary")
-    conversation_flow(tracker, 1234, "/save")
-    print(format_report(user_id=1234, tracker=tracker))
-
-    # tracker = ExpenseTracker(":memory:")
-
-    # print(conversation_flow(tracker, 1234, "income")
-    # print(user_states)
-
-    # print(conversation_flow(tracker, 1234, "2000")
-    # print(user_states)
-
+    ...
 
 
 if __name__ == "__main__":
     main()
-

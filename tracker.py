@@ -1,5 +1,6 @@
 import sqlite3
 
+
 class Tracker:
     def __init__(self, db_path="expenses.db"):
         self.connection = sqlite3.connect(db_path)
@@ -44,7 +45,9 @@ class Tracker:
 
         self.connection.commit()
 
-    def insert_expense(self, amount, category, account, description, timestamp, user_id):
+    def insert_expense(
+        self, amount, category, account, description, timestamp, user_id
+    ):
         self.cursor.execute(
             """
             INSERT INTO expenses (
@@ -171,18 +174,17 @@ class Tracker:
         return self.cursor.fetchall()
 
     # New methods for user_states table
-    
+
     def create_user_state(self, user_id):
         self.cursor.execute(
             """
             INSERT OR IGNORE INTO user_states (user_id, state)
             VALUES (?, ?)
             """,
-            (user_id, "WAITING_FOR_ACTION")
+            (user_id, "WAITING_FOR_ACTION"),
         )
 
         self.connection.commit()
-
 
     def get_user_state(self, user_id):
         self.cursor.execute(
@@ -198,7 +200,7 @@ class Tracker:
             FROM user_states
             WHERE user_id = ?
             """,
-            (user_id,)
+            (user_id,),
         )
 
         result = self.cursor.fetchone()
@@ -215,7 +217,6 @@ class Tracker:
             "account": result[5],
             "description": result[6],
         }
-
 
     def update_user_state(self, user_id, state_data):
         self.cursor.execute(
@@ -239,12 +240,11 @@ class Tracker:
                 state_data.get("category"),
                 state_data.get("account"),
                 state_data.get("description"),
-                user_id
-            )
+                user_id,
+            ),
         )
 
         self.connection.commit()
-
 
     def delete_user_state(self, user_id):
         self.cursor.execute(
@@ -252,7 +252,7 @@ class Tracker:
             DELETE FROM user_states
             WHERE user_id = ?
             """,
-            (user_id,)
+            (user_id,),
         )
 
         self.connection.commit()
@@ -261,4 +261,60 @@ class Tracker:
         self.delete_user_state(user_id)
         self.create_user_state(user_id)
 
+    # New feature to get latest transactions
 
+    def get_latest_expenses(self, user_id, limit=5):
+        self.cursor.execute(
+            """
+            SELECT
+                amount,
+                category,
+                account,
+                description,
+                timestamp
+            FROM expenses
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        )
+
+        return self.cursor.fetchall()
+
+    def get_latest_incomes(self, user_id, limit=5):
+        self.cursor.execute(
+            """
+            SELECT
+                amount,
+                title,
+                account,
+                description,
+                timestamp
+            FROM incomes
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        )
+
+        return self.cursor.fetchall()
+
+    # reset both tables
+    def delete_user_transactions(self, user_id):
+        self.cursor.execute(
+            """
+            DELETE FROM expenses
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+        self.cursor.execute(
+            """
+            DELETE FROM incomes
+            WHERE user_id = ?
+            """,
+            (user_id,),
+        )
+        self.connection.commit()

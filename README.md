@@ -16,3 +16,16 @@ A Telegram bot for tracking personal income and expenses.
 - SQLite
 - python-telegram-bot
 - pytest
+
+## Planned Future Improvements
+
+- Shared household / multi-user finance
+- User roles and permissions
+- Monthly and yearly analytics
+- Visual charts
+- Advanced financial reports
+- Transaction editing and deletion
+- FastAPI backend
+- Web dashboard
+- LLM-powered financial insights
+- Deployment for personal/family use
