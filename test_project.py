@@ -1,12 +1,22 @@
+"""
+test_project.py - Tests for the Personal Finance Tracker's core logic.
+Covers validation, transaction processing, reporting, recent transactions, and conversation flow.
+"""
+
 from tracker import Tracker
 from project import recent_transactions, expense_to_dict, income_to_dict, format_report
 from project import save_income, save_expense
-from project import validate_amount, validate_account, validate_category, validate_title
+from project import (
+    validate_amount,
+    validate_account,
+    validate_description,
+    validate_category,
+    validate_title,
+)
 from project import conversation_flow, save_transaction
 import pytest
 
 
-# test format_roport
 def test_format_report_empty():
     tracker = Tracker(":memory:")
     report = format_report(tracker=tracker, user_id=1234)
@@ -175,8 +185,12 @@ def test_validate_account():
     assert validate_account("   saderat") == "Saderat"
     assert validate_account("saderat   ") == "Saderat"
     assert validate_account("pasargad") == "Pasargad"
+    assert validate_account("dey") == "Dey"
+    assert validate_account(" Dey ") == "Dey"
+
     with pytest.raises(ValueError):
         validate_account("  ")
+
     with pytest.raises(ValueError):
         validate_account("")
 
@@ -210,6 +224,32 @@ def test_validate_title():
         validate_title("!!!")
     with pytest.raises(ValueError):
         validate_title("#$%")
+
+
+def test_validate_description():
+    long_txt = """
+Lorem ipsum dolor sit amet,
+consectetuer adipiscing elit.
+Aenean commodo ligula eget dolor.
+Aenean massa. Cum sociis natoque
+penatibus et magnis dis parturient montes,
+nascetur ridiculus mus. Donec quam felis,
+ultricies nec, pellentesque eu, pretium quis, sem.
+Nulla consequat massa quis enim.
+Donec pede justo, fringilla vel,
+aliquet nec, vulputate eget, arcu. In enim justo,
+"""
+    assert validate_description("test") == "test"
+    assert validate_description("test    Salary") == "test    Salary"
+    assert validate_description("freelance     ") == "freelance"
+    assert validate_description("حقوق") == "حقوق"
+    assert validate_description("123#$%salary") == "123#$%salary"
+    with pytest.raises(ValueError):
+        validate_description("")
+    with pytest.raises(ValueError):
+        validate_description("  ")
+    with pytest.raises(ValueError):
+        validate_description(long_txt)
 
 
 def test_conversation_flow_action():
@@ -265,6 +305,25 @@ def test_conversation_flow_save_income():
     assert incomes[0][1] == "salary"
     assert incomes[0][2] == "Meli"
     assert incomes[0][3] == "monthly salary"
+    assert incomes[0][5] == 1234
+    assert tracker.get_user_state(1234) is None
+
+
+def test_conversation_flow_save_expense():
+    tracker = Tracker(":memory:")
+    conversation_flow(tracker, 1234, "expense")
+    conversation_flow(tracker, 1234, "food")
+    conversation_flow(tracker, 1234, "1000")
+    conversation_flow(tracker, 1234, "dey")
+    conversation_flow(tracker, 1234, "test food")
+
+    incomes = tracker.fetch_expenses(1234)
+
+    assert len(incomes) == 1
+    assert incomes[0][0] == 1000
+    assert incomes[0][1] == "Food"
+    assert incomes[0][2] == "Dey"
+    assert incomes[0][3] == "test food"
     assert incomes[0][5] == 1234
     assert tracker.get_user_state(1234) is None
 

@@ -1,19 +1,24 @@
+"""
+project.py - Core business logic for the Personal Finance Tracker.
+Handles input validation, transaction processing, reporting, and conversation flow.
+"""
+
 from tracker import Tracker
 from datetime import datetime
 
 VALID_ACCOUNTS = [
     "Meli",
     "Saderat",
-    "Pasargad",
     "Melat",
     "Saman",
     "Mehr",
+    "Pasargad",
     "Keshavarzi",
     "Tejarat",
-    "Resalat",
-    "Shahr",
+    "Maskan",
     "Dey",
     "Parsian",
+    "Resalat",
 ]
 
 VALID_CATEGORIES = [
@@ -29,9 +34,6 @@ VALID_CATEGORIES = [
     "Personal",
     "Other",
 ]
-
-
-# validation logic control:
 
 
 def validate_amount(amount):
@@ -71,29 +73,38 @@ def validate_title(title):
     return title
 
 
-def save_income(dict_object, tracker):
+def validate_description(description):
+    description = description.strip()
+
+    if not description or len(description) > 200:
+        raise ValueError
+
+    return description
+
+
+def save_income(dict_data, tracker):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     tracker.insert_income(
-        dict_object["amount"],
-        dict_object["title"],
-        dict_object["account"],
-        dict_object["description"],
+        dict_data["amount"],
+        dict_data["title"],
+        dict_data["account"],
+        dict_data["description"],
         timestamp,
-        dict_object["user_id"],
+        dict_data["user_id"],
     )
 
 
-def save_expense(dict_object, tracker):
+def save_expense(dict_data, tracker):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     tracker.insert_expense(
-        dict_object["amount"],
-        dict_object["category"],
-        dict_object["account"],
-        dict_object["description"],
+       dict_data["amount"],
+        dict_data["category"],
+        dict_data["account"],
+        dict_data["description"],
         timestamp,
-        dict_object["user_id"],
+        dict_data["user_id"],
     )
 
 
@@ -128,6 +139,10 @@ def expense_to_dict(latest_expenses):
 
 
 def recent_transactions(user_id, tracker, limit):
+    """
+    Generate a formatted list of a user's most recent transactions.
+    Combines income and expense records, sorts them by timestamp, and applies the given limit.
+    """
     latest_incomes = tracker.get_latest_incomes(user_id, limit)
     latest_incomes_dicts = income_to_dict(latest_incomes)
 
@@ -154,17 +169,21 @@ def recent_transactions(user_id, tracker, limit):
 
     for transaction in last_limited_transactions:
         if transaction["type"] == "expense":
-            recent += f"💸 {transaction["name"]}\n"
+            recent += f"💸 {transaction['name']}\n"
         elif transaction["type"] == "income":
-            recent += f"💰 {transaction["name"]}\n"
-        recent += f"{transaction["amount"]:,} T\n"
-        recent += f"🏦 {transaction["account"]}\n"
-        recent += f"📝 {transaction["description"]}\n"
-        recent += f"📅 {transaction["timestamp"]}\n\n"
+            recent += f"💰 {transaction['name']}\n"
+        recent += f"{transaction['amount']:,} T\n"
+        recent += f"🏦 {transaction['account']}\n"
+        recent += f"📝 {transaction['description']}\n"
+        recent += f"📅 {transaction['timestamp']}\n\n"
     return recent
 
 
 def format_report(user_id, tracker) -> str:
+    """
+    Generate a financial report for a user.
+    Includes total income, total expenses, category/title breakdowns, and balance.
+    """
     total_expenses = tracker.get_total_expenses(user_id) or 0
     total_incomes = tracker.get_total_incomes(user_id) or 0
     balance = total_incomes - total_expenses
@@ -200,7 +219,7 @@ def format_report(user_id, tracker) -> str:
     return report
 
 
-# refactor method for save
+# Save transaction based on transaction type
 def save_transaction(state, user_id, tracker):
 
     if state["action"] == "income":
@@ -225,9 +244,14 @@ def save_transaction(state, user_id, tracker):
 
 
 def conversation_flow(tracker, user_id, user_input):
+    """
+    Handles the multi-step conversation for recording a transaction.
+    Progresses user through states: ACTION -> TITLE/CATEGORY -> AMOUNT -> ACCOUNT -> DESCRIPTION.
+    Returns the next prompt message to send to the user.
+    """
 
     # format user input
-    user_input = user_input.strip().lower()
+    user_input = user_input.strip()
     state = tracker.get_user_state(user_id)
 
     if state is None:
@@ -236,7 +260,7 @@ def conversation_flow(tracker, user_id, user_input):
 
     # 1. action
     if state["state"] == "WAITING_FOR_ACTION":
-        action = user_input
+        action = user_input.lower()
         if action in ["income", "expense"]:
             state["action"] = action
             if action == "income":
@@ -298,17 +322,23 @@ def conversation_flow(tracker, user_id, user_input):
 
     # 5. description
     elif state["state"] == "WAITING_FOR_DESCRIPTION":
-        description = user_input
-        state["description"] = description
+        try:
+            description = validate_description(user_input)
+            state["description"] = description
 
-        # Saving Automatically
-        save_transaction(state, user_id, tracker)
-        tracker.delete_user_state(user_id)
-        return "✅ Transaction saved successfully!"
+            # Saving Automatically
+            save_transaction(state, user_id, tracker)
+            tracker.delete_user_state(user_id)
+            return "✅ Transaction saved successfully!"
+
+        except ValueError:
+            return "Invalid description. Please try again."
 
 
 def main():
-    ...
+    from bot import app
+
+    app.run_polling()
 
 
 if __name__ == "__main__":

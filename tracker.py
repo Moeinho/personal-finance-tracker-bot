@@ -1,3 +1,8 @@
+"""
+tracker.py - SQLite database layer for the Personal Finance Tracker.
+Handles all direct database operations (CRUD) for expenses, incomes, and conversation state.
+"""
+
 import sqlite3
 
 
@@ -173,9 +178,9 @@ class Tracker:
 
         return self.cursor.fetchall()
 
-    # New methods for user_states table
-
+    # User state management
     def create_user_state(self, user_id):
+        # OR IGNORE prevents error if user_state already exists
         self.cursor.execute(
             """
             INSERT OR IGNORE INTO user_states (user_id, state)
@@ -261,8 +266,7 @@ class Tracker:
         self.delete_user_state(user_id)
         self.create_user_state(user_id)
 
-    # New feature to get latest transactions
-
+    # Latest transactions
     def get_latest_expenses(self, user_id, limit=5):
         self.cursor.execute(
             """

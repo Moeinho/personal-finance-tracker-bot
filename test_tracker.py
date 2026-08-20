@@ -1,6 +1,9 @@
-from tracker import Tracker
+"""
+test_tracker.py - Tests for the Tracker database layer.
+Covers database operations, user state management, transaction retrieval, and deletion.
+"""
 
-# test expenses and incomes tables
+from tracker import Tracker
 
 
 def test_insert_expense():
@@ -179,6 +182,7 @@ def test_create_user_state_duplicate():
 
 # new tests for new methods for getting last 5 transactions
 
+
 def test_get_latest_incomes():
     tracker = Tracker(":memory:")
 
@@ -234,9 +238,7 @@ def test_get_latest_expenses():
 def test_delete_user_transactions():
     tracker = Tracker(":memory:")
 
-    tracker.insert_expense(
-        100, "Food", "Bank", "Lunch", "2026-08-18 10:00", 1234
-    )
+    tracker.insert_expense(100, "Food", "Bank", "Lunch", "2026-08-18 10:00", 1234)
     tracker.insert_income(
         1000, "Salary", "Bank", "Monthly salary", "2026-08-18 11:00", 1234
     )
@@ -250,19 +252,11 @@ def test_delete_user_transactions():
 def test_delete_user_transactions_only_for_user():
     tracker = Tracker(":memory:")
 
-    tracker.insert_expense(
-        100, "Food", "Bank", "User 1", "2026-08-18 10:00", 1234
-    )
-    tracker.insert_expense(
-        200, "Food", "Bank", "User 2", "2026-08-18 11:00", 9999
-    )
+    tracker.insert_expense(100, "Food", "Bank", "User 1", "2026-08-18 10:00", 1234)
+    tracker.insert_expense(200, "Food", "Bank", "User 2", "2026-08-18 11:00", 9999)
 
-    tracker.insert_income(
-        1000, "Salary", "Bank", "User 1", "2026-08-18 12:00", 1234
-    )
-    tracker.insert_income(
-        2000, "Salary", "Bank", "User 2", "2026-08-18 13:00", 9999
-    )
+    tracker.insert_income(1000, "Salary", "Bank", "User 1", "2026-08-18 12:00", 1234)
+    tracker.insert_income(2000, "Salary", "Bank", "User 2", "2026-08-18 13:00", 9999)
 
     tracker.delete_user_transactions(1234)
 

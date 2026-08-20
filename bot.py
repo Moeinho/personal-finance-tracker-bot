@@ -1,6 +1,12 @@
+"""
+bot.py - Telegram bot interface for the Personal Finance Tracker.
+Handles user interactions, commands, keyboards, and message processing.
+"""
+
 import os
 from dotenv import load_dotenv
 from tracker import Tracker
+from project import VALID_ACCOUNTS, VALID_CATEGORIES
 from project import conversation_flow, format_report, recent_transactions
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, CommandHandler
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -15,16 +21,8 @@ if TOKEN is None:
 
 tracker = Tracker()
 
-welcome_txt = """
-👋 Welcome to Personal Finance Tracker!
 
-Manage your income and expenses easily.
-
-What would you like to do?
-"""
-
-help_txt = (
-    """
+help_txt = """
 ❓ HELP
 
 ➕ Add Transaction
@@ -48,7 +46,6 @@ Commands:
 /reset - Delete all transactions
 /help - Show help
 """
-)
 
 
 start_keyboard = ReplyKeyboardMarkup(
@@ -67,36 +64,21 @@ action_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=True,
 )
 
-category_keyboard = ReplyKeyboardMarkup(
-    [
-        ["Food", "Transport"],
-        ["Housing", "Shopping"],
-        ["Bills", "Health"],
-        ["Education", "Entertainment"],
-        ["Travel", "Personal"],
-        ["Other"],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
-
-account_keyboard = ReplyKeyboardMarkup(
-    [
-        ["Meli", "Saderat", "Melat"],
-        ["Saman", "Mehr", "Pasargad"],
-        ["Keshavarzi", "Tejarat", "Maskan"],
-        ["Dey", "Parsian", "Resalat"],
-    ],
-    resize_keyboard=True,
-    one_time_keyboard=True,
-)
-
 
 reset_keyboard = ReplyKeyboardMarkup(
     [["✅ Yes, Reset"], ["❌ Cancel"]],
     resize_keyboard=True,
     one_time_keyboard=True,
 )
+
+
+def build_keyboard(items, columns=3):
+    rows = [items[i : i + columns] for i in range(0, len(items), columns)]
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True, one_time_keyboard=True)
+
+
+account_keyboard = build_keyboard(VALID_ACCOUNTS)
+category_keyboard = build_keyboard(VALID_CATEGORIES, columns=2)
 
 
 async def post_init(application):
@@ -116,10 +98,22 @@ app = ApplicationBuilder().token(TOKEN).post_init(post_init).build()
 
 
 async def start_command(update, context):
+    user_id = update.message.from_user.id
+    username = update.message.from_user.first_name
+    tracker.reset_user_state(user_id)
+
+    welcome_txt = f"""
+👋 Welcome, {username}!
+
+💰 Personal Finance Tracker
+
+Track your income and expenses, keep an eye on your balance, and stay in control of your finances.
+
+What would you like to do?
+"""
     await update.message.reply_text(welcome_txt, reply_markup=start_keyboard)
 
 
-## done temp
 async def add_command(update, context):
     user_id = update.message.from_user.id
     state = tracker.get_user_state(user_id)
@@ -178,7 +172,7 @@ async def error_handler(update, context):
         await update.message.reply_text("Something went wrong. Please try again.")
 
 
-# buttons form start menu
+# Start menu buttons
 async def button_handler(update, context):
     user_id = update.message.from_user.id
     user_input = update.message.text
@@ -238,6 +232,7 @@ async def handle_message(update, context):
     else:
         keyboard = ReplyKeyboardRemove()
     await update.message.reply_text(response, reply_markup=keyboard)
+
 
 app.add_handler(CommandHandler("start", start_command))
 app.add_handler(CommandHandler("add", add_command))
