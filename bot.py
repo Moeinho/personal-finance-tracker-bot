@@ -219,7 +219,9 @@ async def handle_message(update, context):
     response = conversation_flow(tracker, user_id, user_input)
     state_after = tracker.get_user_state(user_id)
 
-    if state_after and state_after["state"] == "WAITING_FOR_CATEGORY":
+    if state_after and state_after["state"] == "WAITING_FOR_ACTION":
+        keyboard = action_keyboard
+    elif state_after and state_after["state"] == "WAITING_FOR_CATEGORY":
         keyboard = category_keyboard
     elif state_after and state_after["state"] == "WAITING_FOR_ACCOUNT":
         keyboard = account_keyboard
